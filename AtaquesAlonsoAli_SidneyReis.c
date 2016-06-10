@@ -44,12 +44,12 @@ static volatile int keepRunning = 1;
 
 typedef unsigned char MacAddress[MAC_ADDR_LEN];
 extern int errno;
-unsigned char buff1[BUFFSIZE]; // buffer de recepcao
-unsigned char buff2[BUFFSIZE]; //buffer de envio
-unsigned char buff3[BUFFSIZE]; //buffer de envio
 
-int sockd;
-int sockSend;
+
+unsigned char bufferEnt[BUFFER_LEN], bufferSai[BUFFER_LEN];
+
+int sockEnt;
+int sockSai;
 int on;
 struct ifreq ifr;
 
@@ -61,7 +61,7 @@ unsigned char targetIp[16]; //IPV6 do alvo
 
 unsigned char interfaceName[5];
 
-struct arphdr arpHeader;
+//struct arphdr arpHeader;
 struct ether_header ethHeader;
 
 struct sockaddr_ll destAddr = {0};
@@ -90,6 +90,17 @@ void intHandler(int dummy) {
     keepRunning = 0;
 }
 
+void tcpconnect()
+{
+	sockEnt = 0;
+	sockSai = 0;
+	
+	
+	
+	
+}
+
+
 
 int main()
 {
@@ -103,7 +114,8 @@ int main()
 /* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
   /* De um "man" para ver os parametros.*/
   /* htons: converte um short (2-byte) integer para standard network byte order. */
-  if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
+  if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+  {
     printf("Erro na criacao do socket.\n");
     exit(1);
   }
