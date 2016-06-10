@@ -35,6 +35,27 @@
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
 
+struct ip6_hdr
+{
+	uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
+	uint16_t payloadLength; //auto explicativo
+	uint8_t nextHeader; //auto explicativo
+	uint8_t hopLimit; //auto explicativo
+};
+
+struct tcp_hdr
+{
+	uint16_t sourcePort; 
+	uint16_t destPort;
+	uint32_t seqNumber;
+	uint32_t ackNumber;
+	uint16_t dataOffAndFlags;
+	uint16_t window;
+	uint16_t checksum;
+	uint16_t urgentPointer;
+	uint32_t options;
+};
+
 
 
 static volatile int keepRunning = 1;
@@ -59,10 +80,12 @@ unsigned char targetMac[6]; //MAC do host que fez o ARP Request original
 unsigned char localIp[16]; //IPV6 da nossa maquina
 unsigned char targetIp[16]; //IPV6 do alvo 
 
+unsigned short int etherType = htons(0x86DD);
+
 unsigned char interfaceName[5];
 
 //struct arphdr arpHeader;
-struct ether_header ethHeader;
+//struct ether_header ethHeader;
 
 struct sockaddr_ll destAddr = {0};
 
@@ -94,6 +117,53 @@ void tcpconnect()
 {
 	sockEnt = 0;
 	sockSai = 0;
+	
+	uint16_t sorcPortNum = 3000; // exemplo
+	uint16_t destPortNum = 3000; // exemplo
+	
+	if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+	{
+		printf("Erro na criacao do socket.\n");
+		exit(1);
+	}
+	
+	tcp_hdr tcp;
+	
+	tcp.sourcePort = htons(sorcPortNum);
+	tcp.destPort = htons(destPortNum);
+	tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
+	tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
+	tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
+	tcp.window = htons(0xff);
+	
+	tcp.checksum = htons(0); //TODO: fazer metodo para calcular
+	tcp.urgentPointer = htons(0); //TODO: avaliar
+	tcp.options = 0;
+	
+	memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
+	
+	
+	ip6_hdr ip6;
+  
+	ip6.firstLine = htons(0x6 << 28);
+    ip6.playloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
+	ip6.nextHeader = 6;
+	ip6.hopLimit = 1;
+  
+	memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
+	memcpy(&localIp, &bufferSai[22], 16);
+	memcpy(&targetIp, &bufferSai[38], 16);
+  
+	memcpy(&targetMac, &bufferSai, 6);
+	memcpy(&localMac, &bufferSai[6], 6);
+	memcpy(&etherType, &bufferSai[12], 2);
+  
+  
+  
+  
+  
+  
+  
 	
 	
 	
