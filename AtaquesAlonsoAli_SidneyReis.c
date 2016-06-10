@@ -18,10 +18,10 @@
 #include <netinet/ether.h> //header ethernet
 #include <netinet/in.h> //definicao de protocolos
 #include <arpa/inet.h> //funcoes para manipulacao de enderecos IP
-#include <netinet/ip6.h> //header ipv6
+//#include <netinet/ip6.h> //header ipv6
 
 #include <net/ethernet.h> //Header do pacote Ethernet
-#include <net/if_arp.h> //header do pacote ARP
+//#include <net/if_arp.h> //header do pacote ARP
 
 #include <netinet/in_systm.h> //tipos de dados
 
@@ -35,15 +35,15 @@
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
 
-struct ip6_hdr
+typedef struct 
 {
 	uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
 	uint16_t payloadLength; //auto explicativo
 	uint8_t nextHeader; //auto explicativo
 	uint8_t hopLimit; //auto explicativo
-};
+} ip6_hdr;
 
-struct tcp_hdr
+typedef struct 
 {
 	uint16_t sourcePort; 
 	uint16_t destPort;
@@ -54,7 +54,7 @@ struct tcp_hdr
 	uint16_t checksum;
 	uint16_t urgentPointer;
 	uint32_t options;
-};
+} tcp_hdr ;
 
 
 
@@ -80,7 +80,7 @@ unsigned char targetMac[6]; //MAC do host que fez o ARP Request original
 unsigned char localIp[16]; //IPV6 da nossa maquina
 unsigned char targetIp[16]; //IPV6 do alvo 
 
-unsigned short int etherType = htons(0x86DD);
+unsigned short int etherType;
 
 unsigned char interfaceName[5];
 
@@ -121,7 +121,7 @@ void tcpconnect()
 	uint16_t sorcPortNum = 3000; // exemplo
 	uint16_t destPortNum = 3000; // exemplo
 	
-	if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+	if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
 	{
 		printf("Erro na criacao do socket.\n");
 		exit(1);
@@ -141,29 +141,37 @@ void tcpconnect()
 	tcp.options = 0;
 	
 	memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
-	
-	
+
 	ip6_hdr ip6;
   
 	ip6.firstLine = htons(0x6 << 28);
-    ip6.playloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
+  ip6.payloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
 	ip6.nextHeader = 6;
 	ip6.hopLimit = 1;
-  
+
+
 	memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
 	memcpy(&localIp, &bufferSai[22], 16);
 	memcpy(&targetIp, &bufferSai[38], 16);
-  
+
 	memcpy(&targetMac, &bufferSai, 6);
 	memcpy(&localMac, &bufferSai[6], 6);
 	memcpy(&etherType, &bufferSai[12], 2);
-  
-  
-  
-  
-  
-  
-  
+
+  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0) 
+  {
+    printf("ERROR! sendto() \n");
+    exit(1);
+  }
+
+  recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0);
+
+
+  printf("lol\n");
+
+
+
+
 	
 	
 	
@@ -172,26 +180,28 @@ void tcpconnect()
 
 
 
-int main()
+int main(int argc, char *argv[])
 {
+
+  //if(argc != ) terminar
   int i, sockFd = 0, retValue = 0;
   char buffer[BUFFER_LEN], dummyBuf[50];
   //struct sockaddr_ll destAddr;
-  short int etherTypeT = htons(0x8200);
+
+  etherType = htons(0x86DD);
 
   signal(SIGINT, intHandler);
 
 /* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
   /* De um "man" para ver os parametros.*/
   /* htons: converte um short (2-byte) integer para standard network byte order. */
-  if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+  /*if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
   {
     printf("Erro na criacao do socket.\n");
     exit(1);
-  }
+  }*/
 
   strcpy(interfaceName, "eth0");
-
   acquireMAC(&localMac);
 
 
@@ -210,15 +220,15 @@ int main()
   ifr.ifr_flags |= IFF_PROMISC;
   ioctl(sockFd, SIOCSIFFLAGS, &ifr);*/
 
-  
-
-
   /* Identificacao de qual maquina (MAC) deve receber a mensagem enviada no socket. */
-  /*destAddr.sll_family = htons(PF_PACKET);
+  destAddr.sll_family = htons(PF_PACKET);
   destAddr.sll_protocol = htons(ETH_P_ALL);
   destAddr.sll_halen = 6;
-  destAddr.sll_ifindex = 2; */ /* indice da interface pela qual os pacotes serao enviados. Eh necessário conferir este valor. */
-  
+  destAddr.sll_ifindex = 2;
+
+  tcpconnect();
+   /* indice da interface pela qual os pacotes serao enviados. Eh necessário conferir este valor. */
+  /*
   while(1)
     {
         recv(sockFd,(char *) &buff1, sizeof(buff1), 0x0);
@@ -261,7 +271,7 @@ int main()
   while(keepRunning) {
     /* Envia pacotes de 42 bytes */
 
-    if((retValue = sendto(sockFd, buff2, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
+    /*if((retValue = sendto(sockFd, buff2, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
        printf("ERROR! sendto() \n");
        exit(1);
     }
@@ -281,5 +291,5 @@ int main()
   if((retValue = sendto(sockFd, buff3, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
        printf("ERROR! sendto() \n");
        exit(1);
-    }
+    }*/
 }
