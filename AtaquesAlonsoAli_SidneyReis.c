@@ -35,7 +35,7 @@
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
 
-typedef struct 
+typedef struct
 {
 	uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
 	uint16_t payloadLength; //auto explicativo
@@ -43,9 +43,9 @@ typedef struct
 	uint8_t hopLimit; //auto explicativo
 } ip6_hdr;
 
-typedef struct 
+typedef struct
 {
-	uint16_t sourcePort; 
+	uint16_t sourcePort;
 	uint16_t destPort;
 	uint32_t seqNumber;
 	uint32_t ackNumber;
@@ -78,7 +78,7 @@ unsigned char localMac[6]; //MAC da nossa máquina
 unsigned char targetMac[6]; //MAC do host que fez o ARP Request original
 
 unsigned char localIp[16]; //IPV6 da nossa maquina
-unsigned char targetIp[16]; //IPV6 do alvo 
+unsigned char targetIp[16]; //IPV6 do alvo
 
 unsigned short int etherType;
 
@@ -113,37 +113,103 @@ void intHandler(int dummy) {
     keepRunning = 0;
 }
 
+void stealthscan()
+{
+  sockEnt = 0;
+  sockSai = 0;
+
+  uint16_t sorcPortNum = 3000; // exemplo
+  uint16_t destPortNum = 3000; // exemplo
+
+  if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+  {
+    printf("Erro na criacao do socket.\n");
+    exit(1);
+  }
+
+  tcp_hdr tcp;
+
+  tcp.sourcePort = htons(sorcPortNum);
+  tcp.destPort = htons(destPortNum);
+  tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
+  tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
+  tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+  tcp.window = htons(0xff);
+
+  tcp.checksum = htons(0); //TODO: fazer metodo para calcular
+  tcp.urgentPointer = htons(0); //TODO: avaliar
+  tcp.options = 0;
+
+  memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
+
+  ip6_hdr ip6;
+
+  ip6.firstLine = htons(0x6 << 28);
+  ip6.payloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
+  ip6.nextHeader = 6;
+  ip6.hopLimit = 1;
+
+  memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
+  memcpy(&localIp, &bufferSai[22], 16);
+  memcpy(&targetIp, &bufferSai[38], 16);
+
+  memcpy(&targetMac, &bufferSai, 6);
+  memcpy(&localMac, &bufferSai[6], 6);
+  memcpy(&etherType, &bufferSai[12], 2);
+
+  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+  {
+    printf("ERROR! sendto() \n");
+    exit(1);
+  }
+
+  recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0);
+
+  if(!memcmp(&bufferEnt[54], &tcp.destPort, 16) && !memcmp(&bufferEnt[70], &tcp.sourcePort, 16))
+  {
+    printf("source port e destination port esperados\n");
+    if(bufferEnt[164]==1)
+    {
+      printf("\nrecebido com RST, porta esta fechada\n");
+    }
+    else
+    {
+      printf("\nrecebido sem RST, porta esta aberta\n");
+    }
+  }
+}
+
 void tcpconnect()
 {
 	sockEnt = 0;
 	sockSai = 0;
-	
+
 	uint16_t sorcPortNum = 3000; // exemplo
 	uint16_t destPortNum = 3000; // exemplo
-	
+
 	if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
 	{
 		printf("Erro na criacao do socket.\n");
 		exit(1);
 	}
-	
+
 	tcp_hdr tcp;
-	
+
 	tcp.sourcePort = htons(sorcPortNum);
 	tcp.destPort = htons(destPortNum);
 	tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
 	tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
 	tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
 	tcp.window = htons(0xff);
-	
+
 	tcp.checksum = htons(0); //TODO: fazer metodo para calcular
 	tcp.urgentPointer = htons(0); //TODO: avaliar
 	tcp.options = 0;
-	
+
 	memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
 
 	ip6_hdr ip6;
-  
+
 	ip6.firstLine = htons(0x6 << 28);
   ip6.payloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
 	ip6.nextHeader = 6;
@@ -158,7 +224,7 @@ void tcpconnect()
 	memcpy(&localMac, &bufferSai[6], 6);
 	memcpy(&etherType, &bufferSai[12], 2);
 
-  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0) 
+  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
   {
     printf("ERROR! sendto() \n");
     exit(1);
@@ -172,10 +238,10 @@ void tcpconnect()
 
 
 
-	
-	
-	
-	
+
+
+
+
 }
 
 
@@ -208,7 +274,7 @@ int main(int argc, char *argv[])
 
   /* Configura MAC Origem e Destino */
 
-  
+
 
 
 
