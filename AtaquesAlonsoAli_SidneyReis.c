@@ -37,23 +37,23 @@
 
 typedef struct 
 {
-	uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
-	uint16_t payloadLength; //auto explicativo
-	uint8_t nextHeader; //auto explicativo
-	uint8_t hopLimit; //auto explicativo
+    uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
+    uint16_t payloadLength; //auto explicativo
+    uint8_t nextHeader; //auto explicativo
+    uint8_t hopLimit; //auto explicativo
 } ip6_hdr;
 
 typedef struct 
 {
-	uint16_t sourcePort; 
-	uint16_t destPort;
-	uint32_t seqNumber;
-	uint32_t ackNumber;
-	uint16_t dataOffAndFlags;
-	uint16_t window;
-	uint16_t checksum;
-	uint16_t urgentPointer;
-	uint32_t options;
+    uint16_t sourcePort; 
+    uint16_t destPort;
+    uint32_t seqNumber;
+    uint32_t ackNumber;
+    uint16_t dataOffAndFlags;
+    uint16_t window;
+    uint16_t checksum;
+    uint16_t urgentPointer;
+    uint32_t options;
 } tcp_hdr ;
 
 
@@ -115,48 +115,48 @@ void intHandler(int dummy) {
 
 void tcpconnect()
 {
-	sockEnt = 0;
-	sockSai = 0;
-	
-	uint16_t sorcPortNum = 3000; // exemplo
-	uint16_t destPortNum = 3000; // exemplo
-	
-	if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
-	{
-		printf("Erro na criacao do socket.\n");
-		exit(1);
-	}
-	
-	tcp_hdr tcp;
-	
-	tcp.sourcePort = htons(sorcPortNum);
-	tcp.destPort = htons(destPortNum);
-	tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
-	tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
-	tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
-	tcp.window = htons(0xff);
-	
-	tcp.checksum = htons(0); //TODO: fazer metodo para calcular
-	tcp.urgentPointer = htons(0); //TODO: avaliar
-	tcp.options = 0;
-	
-	memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
+    sockEnt = 0;
+    sockSai = 0;
+    
+    uint16_t sorcPortNum = 3000; // exemplo
+    uint16_t destPortNum = 3000; // exemplo
+    
+    if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    {
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+    
+    tcp_hdr tcp;
+    
+    tcp.sourcePort = htons(sorcPortNum);
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
+    tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
+    tcp.window = htons(0xff);
+    
+    tcp.checksum = htons(0); //TODO: fazer metodo para calcular
+    tcp.urgentPointer = htons(0); //TODO: avaliar
+    tcp.options = 0;
+    
+    memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
 
-	ip6_hdr ip6;
+    ip6_hdr ip6;
   
-	ip6.firstLine = htons(0x6 << 28);
-  ip6.payloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
-	ip6.nextHeader = 6;
-	ip6.hopLimit = 1;
+    ip6.firstLine = htons(0x6 << 28);
+  ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
+    ip6.nextHeader = 6;
+    ip6.hopLimit = 1;
 
 
-	memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
-	memcpy(&localIp, &bufferSai[22], 16);
-	memcpy(&targetIp, &bufferSai[38], 16);
+    memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
+    memcpy(&localIp, &bufferSai[22], 16);
+    memcpy(&targetIp, &bufferSai[38], 16);
 
-	memcpy(&targetMac, &bufferSai, 6);
-	memcpy(&localMac, &bufferSai[6], 6);
-	memcpy(&etherType, &bufferSai[12], 2);
+    memcpy(&targetMac, &bufferSai, 6);
+    memcpy(&localMac, &bufferSai[6], 6);
+    memcpy(&etherType, &bufferSai[12], 2);
 
   if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0) 
   {
@@ -168,22 +168,27 @@ void tcpconnect()
 
 
   printf("lol\n");
-
-
-
-
-	
-	
-	
-	
 }
 
 
 
 int main(int argc, char *argv[])
 {
+  printf("%s\n", "cara");
+  if(argc != 3)
+  {
+    printf("Parametros faltando!\nPrimeiro parametro: ip da vitima\nSegundo parametro: mac da vitima\n");
+    exit(1);
+  }
+  else
+  {
+    memcpy(&targetIp, argv[1], 16);
+    memcpy(&targetMac, argv[2], 16);
+  }
 
-  //if(argc != ) terminar
+  
+
+
   int i, sockFd = 0, retValue = 0;
   char buffer[BUFFER_LEN], dummyBuf[50];
   //struct sockaddr_ll destAddr;
