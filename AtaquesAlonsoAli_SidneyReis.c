@@ -37,7 +37,7 @@
 
 typedef struct
 {
-    uint32_t firstLine; //4 bits type, 8 bits traffic class, 30 Flow label
+    uint32_t firstLine; //4 bits type, 8 bits traffic class, 20 Flow label
     uint16_t payloadLength; //auto explicativo
     uint8_t nextHeader; //auto explicativo
     uint8_t hopLimit; //auto explicativo
@@ -45,17 +45,6 @@ typedef struct
 
 typedef struct
 {
-<<<<<<< HEAD
-    uint16_t sourcePort; 
-    uint16_t destPort;
-    uint32_t seqNumber;
-    uint32_t ackNumber;
-    uint16_t dataOffAndFlags;
-    uint16_t window;
-    uint16_t checksum;
-    uint16_t urgentPointer;
-    uint32_t options;
-=======
 	uint16_t sourcePort;
 	uint16_t destPort;
 	uint32_t seqNumber;
@@ -65,8 +54,7 @@ typedef struct
 	uint16_t checksum;
 	uint16_t urgentPointer;
 	uint32_t options;
->>>>>>> b0a57ae5184944bdffcd5469668192170b5cbd10
-} tcp_hdr ;
+} tcp_hdr;
 
 
 
@@ -161,13 +149,13 @@ void stealthscan()
   ip6.nextHeader = 6;
   ip6.hopLimit = 1;
 
-  memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
-  memcpy(&localIp, &bufferSai[22], 16);
-  memcpy(&targetIp, &bufferSai[38], 16);
+  memcpy( &bufferSai[14], &ip6,8); //8 bytes = tamanho ip6 struct
+  memcpy( &bufferSai[22], &localIp,16);
+  memcpy(&bufferSai[38], &targetIp, 16);
 
-  memcpy(&targetMac, &bufferSai, 6);
-  memcpy(&localMac, &bufferSai[6], 6);
-  memcpy(&etherType, &bufferSai[12], 2);
+  memcpy( &bufferSai, &targetMac, 6);
+  memcpy( &bufferSai[6], &localMac,6);
+  memcpy( &bufferSai[12], &etherType,2);
 
   if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
   {
@@ -221,22 +209,22 @@ void tcpconnect()
     memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
 
     ip6_hdr ip6;
-  
-    ip6.firstLine = htons(0x6 << 28);
-  ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
+    uint32_t tipo =0x6 << 12;
+    ip6.firstLine = htons(tipo);
+    ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
     ip6.nextHeader = 6;
     ip6.hopLimit = 1;
 
 
-    memcpy(&ip6, &bufferSai[14], 8); //8 bytes = tamanho ip6 struct
-    memcpy(&localIp, &bufferSai[22], 16);
-    memcpy(&targetIp, &bufferSai[38], 16);
+    memcpy(&bufferSai[14], &ip6,  8); //8 bytes = tamanho ip6 struct
+    memcpy(&bufferSai[22],&localIp, 16);
+    memcpy(&bufferSai[38], &targetIp, 16);
 
-    memcpy(&targetMac, &bufferSai, 6);
-    memcpy(&localMac, &bufferSai[6], 6);
-    memcpy(&etherType, &bufferSai[12], 2);
+    memcpy(&bufferSai, &targetMac, 6);
+    memcpy(&bufferSai[6], &localMac, 6);
+    memcpy(&bufferSai[12], &etherType, 2);
 
-  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+  if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr), 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
   {
     printf("ERROR! sendto() \n");
     exit(1);
@@ -248,24 +236,116 @@ void tcpconnect()
   printf("lol\n");
 }
 
+/*
+void readTargetMacAndIP()
+{
+    FILE *fp;
+    int c;
+    fp = fopen("target.txt","r");
+    if(fp != NULL)
+    {
+        printf("%s\n", "cara");
+        fread(targetMac,1, 6, fp);
+        fread(&targetIp,1, 16, fp);
+        fclose(fp);
+    }
+    else
+    {
+        printf("%s\n", "Nao foi encontrado arquivo target.txt. Modo de uso: inserir primeiro mac e depois endereco ipv6");
+        exit(0);
+    }
 
 
-int main(int argc, char *argv[])
+}*/
+
+void readTargetMacAndIP()
+{
+    unsigned int iMac[6];
+    char macStr[17];
+    unsigned int iIpv6[16];
+    char ipv6Str[39];
+    int i;
+
+    printf("%s\n", "Insira MAC da vitima: (usar formato padrao, i.e: a4:f3:21:44:55:fe)");
+    scanf("%s", macStr);
+
+    sscanf(macStr, "%x:%x:%x:%x:%x:%x", &iMac[0], &iMac[1], &iMac[2], &iMac[3], &iMac[4], &iMac[5]);
+    for(i=0;i<6;i++)
+        targetMac[i] = (unsigned char)iMac[i];
+
+    printf("%s\n", "Insira endereco IPv6 da vitima: (usar formato padrao, i.e: fe80:f333:2121:4451:5578:fe23:abcd:3223)");
+    scanf("%s", ipv6Str);
+
+    sscanf(ipv6Str, "%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x:%x%x", &iIpv6[0], &iIpv6[1], &iIpv6[2], &iIpv6[3], &iIpv6[4], &iIpv6[5], &iIpv6[6],&iIpv6[7],&iIpv6[8],&iIpv6[9],&iIpv6[10],&iIpv6[11],&iIpv6[12],&iIpv6[13],&iIpv6[14],&iIpv6[15]);
+    for(i=0;i<16;i++)
+    {
+        targetIp[i] = (unsigned char)iIpv6[i];
+    }
+}
+
+void setupTeste()
+{
+    localMac[0] = 0xa4;
+    localMac[1] = 0x1f;
+    localMac[2] = 0x72;
+    localMac[3] = 0xf5;
+    localMac[4] = 0x90;
+    localMac[5] = 0x12;
+
+    localIp[0] = 0xfe;
+    localIp[1] = 0x80;
+    localIp[2] = 0x00;
+    localIp[3] = 0x00;
+    localIp[4] = 0x00;
+    localIp[5] = 0x00;
+    localIp[6] = 0x00;
+    localIp[7] = 0x00;
+    localIp[8] = 0xa6;
+    localIp[9] = 0x1f;
+    localIp[10] = 0x72;
+    localIp[11] = 0xff;
+    localIp[12] = 0xfe;
+    localIp[13] = 0xf5;
+    localIp[14] = 0x90;
+    localIp[15] = 0x12;
+
+    targetMac[0] = 0xa4;
+    targetMac[1] = 0x1f;
+    targetMac[2] = 0x72;
+    targetMac[3] = 0xf5;
+    targetMac[4] = 0x90;
+    targetMac[5] = 0xbe;
+
+    targetIp[0] = 0xfe;
+    targetIp[1] = 0x80;
+    targetIp[2] = 0x00;
+    targetIp[3] = 0x00;
+    targetIp[4] = 0x00;
+    targetIp[5] = 0x00;
+    targetIp[6] = 0x00;
+    targetIp[7] = 0x00;
+    targetIp[8] = 0xa6;
+    targetIp[9] = 0x1f;
+    targetIp[10] = 0x72;
+    targetIp[11] = 0xff;
+    targetIp[12] = 0xfe;
+    targetIp[13] = 0xf5;
+    targetIp[14] = 0x90;
+    targetIp[15] = 0xbe;
+}
+
+
+
+int main()
 {
   printf("%s\n", "cara");
-  if(argc != 3)
-  {
-    printf("Parametros faltando!\nPrimeiro parametro: ip da vitima\nSegundo parametro: mac da vitima\n");
-    exit(1);
-  }
-  else
-  {
-    memcpy(&targetIp, argv[1], 16);
-    memcpy(&targetMac, argv[2], 16);
-  }
-
   
+  //readTargetMacAndIP();
+  setupTeste();
 
+
+  printf("%c\n", targetMac[0]);
+  printf("%c\n", targetIp[0]);
 
   int i, sockFd = 0, retValue = 0;
   char buffer[BUFFER_LEN], dummyBuf[50];
