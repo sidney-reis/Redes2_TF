@@ -56,7 +56,13 @@ typedef struct
 	uint32_t options;
 } tcp_hdr;
 
-
+typedef struct
+{
+  unsigned char sourceAddress[16];
+  unsigned char destinationAddress[16];
+  uint32_t tcpLength;
+  uint32_t zeros_nextHeader;
+} pseudo_hdr;
 
 static volatile int keepRunning = 1;
 
@@ -88,6 +94,76 @@ unsigned char interfaceName[5];
 //struct ether_header ethHeader;
 
 struct sockaddr_ll destAddr = {0};
+
+/*
+ * Copyright (c) 1989, 1993
+ *      The Regents of the University of California.  All rights reserved.
+ *
+ * This code is derived from software contributed to Berkeley by
+ * Mike Muuss.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. All advertising materials mentioning features or use of this software
+ *    must display the following acknowledgement:
+ *      This product includes software developed by the University of
+ *      California, Berkeley and its contributors.
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+/*
+ * in_cksum --
+ *      Checksum routine for Internet Protocol family headers (C Version)
+ */
+unsigned short in_cksum(unsigned short *addr,int len)
+{
+        register int sum = 0;
+        u_short answer = 0;
+        register u_short *w = addr;
+        register int nleft = len;
+
+        /*
+         * Our algorithm is simple, using a 32 bit accumulator (sum), we add
+         * sequential 16 bit words to it, and at the end, fold back all the
+         * carry bits from the top 16 bits into the lower 16 bits.
+         */
+        while (nleft > 1) {
+                sum += *w++;
+                nleft -= 2;
+        }
+
+        /* mop up an odd byte, if necessary */
+        if (nleft == 1) {
+                *(u_char *)(&answer) = *(u_char *)w ;
+                sum += answer;
+        }
+
+        /* add back carry outs from top 16 bits to low 16 bits */
+        sum = (sum >> 16) + (sum & 0xffff);     /* add hi 16 to low 16 */
+        sum += (sum >> 16);                     /* add carry */
+        answer = ~sum;                          /* truncate to 16 bits */
+        return(answer);
+}
 
 void acquireMAC() {
 
@@ -128,24 +204,36 @@ void stealthscan()
   }
 
   tcp_hdr tcp;
-
   tcp.sourcePort = htons(sorcPortNum);
   tcp.destPort = htons(destPortNum);
   tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
   tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
   tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
   tcp.window = htons(0xff);
-
-  tcp.checksum = htons(0); //TODO: fazer metodo para calcular
+  tcp.checksum = htons(0);
   tcp.urgentPointer = htons(0); //TODO: avaliar
   tcp.options = 0;
+
+  pseudo_hdr pseudoHeader;
+  memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
+  memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
+  pseudoHeader.tcpLength = sizeof(tcp);
+  pseudoHeader.zeros_nextHeader = htons(6);
+
+  int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
+  unsigned char pseudoWithTcp[tcpChecksumSize];
+  memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
+  memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
+
+  tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
 
   memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
 
   ip6_hdr ip6;
 
-  ip6.firstLine = htons(0x6 << 28);
-  ip6.payloadLength = htons(0); //TODO: MUDAR DEPOIS PRO VALOR CORRETO
+  uint32_t tipo =0x6 << 12;
+  ip6.firstLine = htons(tipo);
+  ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
   ip6.nextHeader = 6;
   ip6.hopLimit = 1;
 
@@ -183,32 +271,45 @@ void tcpconnect()
 {
     sockEnt = 0;
     sockSai = 0;
-    
+
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
 
     uint16_t portLimit = 3000;
-    
+
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
         printf("Erro na criacao do socket.\n");
         exit(1);
     }
-    
+
     tcp_hdr tcp;
-    
+
     tcp.sourcePort = htons(sorcPortNum);
     tcp.destPort = htons(destPortNum);
     tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
     tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
     tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
     tcp.window = htons(0xff);
-    
-    tcp.checksum = htons(0); //TODO: fazer metodo para calcular
+
+    tcp.checksum = htons(0);
     tcp.urgentPointer = htons(0); //TODO: avaliar
     tcp.options = 0;
-    
-    
+
+    pseudo_hdr pseudoHeader;
+    memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
+    memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
+    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.zeros_nextHeader = htons(6);
+
+    int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
+    unsigned char pseudoWithTcp[tcpChecksumSize];
+    memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+
 
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
@@ -227,7 +328,7 @@ void tcpconnect()
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
 
-  
+
 
   while(destPortNum <= portLimit)
   {
@@ -254,7 +355,7 @@ void tcpconnect()
             printf("Porta %i: aberta\n", destPortNum);
 
             bufferSai[54 + 12 + 1] = 0x10; //ACK set
-            
+
         }
         else
         {
@@ -270,7 +371,7 @@ void tcpconnect()
   }
 
 
-  
+
 
 
   printf("lol\n");
@@ -379,7 +480,7 @@ void setupTeste()
 int main()
 {
   printf("%s\n", "cara");
-  
+
   //readTargetMacAndIP();
   setupTeste();
 
