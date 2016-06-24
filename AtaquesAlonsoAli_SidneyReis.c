@@ -12,7 +12,7 @@
 #include <linux/if_ether.h>
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
-
+#include <fcntl.h>
 
 #include <net/if.h>  //estrutura ifr
 #include <netinet/ether.h> //header ethernet
@@ -83,9 +83,6 @@ unsigned char targetIp[16]; //IPV6 do alvo
 unsigned short int etherType;
 
 unsigned char interfaceName[5];
-
-//struct arphdr arpHeader;
-//struct ether_header ethHeader;
 
 struct sockaddr_ll destAddr = {0};
 
@@ -187,20 +184,29 @@ void tcpconnect()
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
 
-    uint16_t portLimit = 3000;
+    uint16_t portLimit = 5002;
     
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
         printf("Erro na criacao do socket.\n");
         exit(1);
     }
+
+    if((sockEnt = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    {
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+
+    int flags = fcntl(sockEnt, F_GETFL, 0);
+    fcntl(sockEnt, F_SETFL, flags | O_NONBLOCK);
     
     tcp_hdr tcp;
     
     tcp.sourcePort = htons(sorcPortNum);
     tcp.destPort = htons(destPortNum);
-    tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
-    tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
     tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
     tcp.window = htons(0xff);
     
@@ -213,7 +219,7 @@ void tcpconnect()
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
     ip6.firstLine = htons(tipo);
-    ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
+    ip6.payloadLength = htons(sizeof(tcp_hdr));
     ip6.nextHeader = 6;
     ip6.hopLimit = 5;
 
@@ -228,7 +234,7 @@ void tcpconnect()
     memcpy(&bufferSai[12], &etherType, 2);
 
   
-
+    //varedura de portas
   while(destPortNum <= portLimit)
   {
     if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
@@ -236,15 +242,23 @@ void tcpconnect()
         printf("ERROR! sendto() \n");
         exit(1);
     }
-    int i = 150000;
+    int i = 15000;
     while(i != 0)
     {
         if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
         {
-            break;
+            if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
+            {
+                printf("Lalaioss%s\n", bufferEnt);
+                break;
+            }
         }
+
+        //printf("%i\n", i);
+        //printf("%zd\n", recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0));
         i--;
     }
+
 
     if(i != 0)
     {
@@ -253,8 +267,22 @@ void tcpconnect()
             //recebido eh syn/ack
             printf("Porta %i: aberta\n", destPortNum);
 
-            bufferSai[54 + 12 + 1] = 0x10; //ACK set
-            
+            tcp_hdr received;
+            memcpy(&received, &bufferEnt[54], sizeof(tcp_hdr));
+
+            tcp.dataOffAndFlags = htons((0x6 << 12) + 0x10); //ack
+            tcp.seqNumber = received.ackNumber;
+            tcp.ackNumber = received.seqNumber+1;
+
+            memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
+
+            //terminou de construir o ack
+
+            if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+            {
+                printf("ERROR! sendto() no envio do ACK tcpconnect\n");
+                exit(1);
+            }
         }
         else
         {
@@ -263,17 +291,23 @@ void tcpconnect()
     }
     else
     {
-        printf("Porta %i: aberta\n", destPortNum);
+        printf("Porta %i: fechada\n", destPortNum);
     }
 
+    destPortNum++;
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
 
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
   }
 
 
   
 
 
-  printf("lol\n");
+  printf("Terminou TCP Connect\n");
 }
 
 /*
@@ -354,7 +388,7 @@ void setupTeste()
     targetMac[2] = 0x72;
     targetMac[3] = 0xf5;
     targetMac[4] = 0x90;
-    targetMac[5] = 0xbe;
+    targetMac[5] = 0x50;
 
     targetIp[0] = 0xfe;
     targetIp[1] = 0x80;
@@ -393,7 +427,7 @@ int main()
 
   etherType = htons(0x86DD);
 
-  signal(SIGINT, intHandler);
+  //signal(SIGINT, intHandler);
 
 /* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
   /* De um "man" para ver os parametros.*/
