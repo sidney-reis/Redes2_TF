@@ -132,7 +132,7 @@ void stealthscan()
   tcp.sourcePort = htons(sorcPortNum);
   tcp.destPort = htons(destPortNum);
   tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
-  tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
+  tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
   tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
   tcp.window = htons(0xff);
 
@@ -140,7 +140,7 @@ void stealthscan()
   tcp.urgentPointer = htons(0); //TODO: avaliar
   tcp.options = 0;
 
-  memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
+  memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
 
   ip6_hdr ip6;
 
@@ -198,7 +198,7 @@ void tcpconnect()
     tcp.sourcePort = htons(sorcPortNum);
     tcp.destPort = htons(destPortNum);
     tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
-    tcp.ackNumber = htons(1); //TODO: verificar se precisa alterar
+    tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
     tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
     tcp.window = htons(0xff);
     
@@ -206,14 +206,14 @@ void tcpconnect()
     tcp.urgentPointer = htons(0); //TODO: avaliar
     tcp.options = 0;
     
-    memcpy(&tcp, &bufferSai[54], sizeof(tcp_hdr));
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
 
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
     ip6.firstLine = htons(tipo);
     ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
     ip6.nextHeader = 6;
-    ip6.hopLimit = 1;
+    ip6.hopLimit = 5;
 
 
     memcpy(&bufferSai[14], &ip6,  8); //8 bytes = tamanho ip6 struct
@@ -224,13 +224,27 @@ void tcpconnect()
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
 
-  if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr), 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+  if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
   {
     printf("ERROR! sendto() \n");
     exit(1);
   }
 
-  recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0);
+  int i = 150000;
+  while(i != 0)
+  {
+    if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
+    {
+        break;
+    }
+
+    i--;
+  }
+
+  if(i )
+
+
+  
 
 
   printf("lol\n");
@@ -331,7 +345,7 @@ void setupTeste()
     targetIp[12] = 0xfe;
     targetIp[13] = 0xf5;
     targetIp[14] = 0x90;
-    targetIp[15] = 0xbe;
+    targetIp[15] = 0x50;
 }
 
 
