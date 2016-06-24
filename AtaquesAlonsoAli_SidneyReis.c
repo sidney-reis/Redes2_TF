@@ -185,7 +185,9 @@ void tcpconnect()
     sockSai = 0;
     
     uint16_t sorcPortNum = 3000; // exemplo
-    uint16_t destPortNum = 3000; // exemplo
+    uint16_t destPortNum = 1024; // exemplo
+
+    uint16_t portLimit = 3000;
     
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
@@ -206,7 +208,7 @@ void tcpconnect()
     tcp.urgentPointer = htons(0); //TODO: avaliar
     tcp.options = 0;
     
-    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+    
 
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
@@ -215,6 +217,7 @@ void tcpconnect()
     ip6.nextHeader = 6;
     ip6.hopLimit = 5;
 
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
 
     memcpy(&bufferSai[14], &ip6,  8); //8 bytes = tamanho ip6 struct
     memcpy(&bufferSai[22],&localIp, 16);
@@ -224,24 +227,47 @@ void tcpconnect()
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
 
-  if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
-  {
-    printf("ERROR! sendto() \n");
-    exit(1);
-  }
+  
 
-  int i = 150000;
-  while(i != 0)
+  while(destPortNum <= portLimit)
   {
-    if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
     {
-        break;
+        printf("ERROR! sendto() \n");
+        exit(1);
+    }
+    int i = 150000;
+    while(i != 0)
+    {
+        if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
+        {
+            break;
+        }
+        i--;
     }
 
-    i--;
-  }
+    if(i != 0)
+    {
+        if(bufferEnt[54 + 12 + 1] == 0x12) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
+        {
+            //recebido eh syn/ack
+            printf("Porta %i: aberta\n", destPortNum);
 
-  if(i )
+            bufferSai[54 + 12 + 1] = 0x10; //ACK set
+            
+        }
+        else
+        {
+            printf("Flag desconhecido\n");
+        }
+    }
+    else
+    {
+        printf("Porta %i: aberta\n", destPortNum);
+    }
+
+
+  }
 
 
   
