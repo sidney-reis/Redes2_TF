@@ -31,6 +31,8 @@
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
 
+struct ifreq ifr;
+
 unsigned char buff[BUFFSIZE]; // buffer de recepcao
 
 int detected = 0;
@@ -45,15 +47,15 @@ int sockd;
 int estadoTcpConnect = 0;
 int estadoTcpHalfOpening = 0;
 
-int ethertype = htons(0x86DD);
-int ipv6type = 0x6
+int ethertype;
+int ipv6type;
 
-processaTcpConnect()
+void processaTcpConnect()
 {
 
 }
 
-processaTcpHalfOpening()
+void processaTcpHalfOpening()
 {
 
 }
@@ -61,17 +63,21 @@ processaTcpHalfOpening()
 
 int main()
 {
+    ethertype = htons(0x86DD);
+    ipv6type = 0x6;
+
+
     strcpy(interfaceName, "eth0");
 
     // O procedimento abaixo eh utilizado para "setar" a interface em modo promiscuo
     strcpy(ifr.ifr_name, interfaceName);
-    if(ioctl(sockFd, SIOCGIFINDEX, &ifr) < 0)
+    if(ioctl(sockd, SIOCGIFINDEX, &ifr) < 0)
       printf("erro no ioctl!");
-    ioctl(sockFd, SIOCGIFFLAGS, &ifr);
+    ioctl(sockd, SIOCGIFFLAGS, &ifr);
     ifr.ifr_flags |= IFF_PROMISC;
-    ioctl(sockFd, SIOCSIFFLAGS, &ifr);
+    ioctl(sockd, SIOCSIFFLAGS, &ifr);
 
-    if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    if((sockd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
         printf("Erro na criacao do socket.\n");
         exit(1);
@@ -85,7 +91,7 @@ int main()
             printf("eh ip6\n");
             if(buff[21] == 0x6) //tcp
             {
-                printf("eh tcp\n\n", );
+                printf("eh tcp\n\n");
                 processaTcpConnect();
                 processaTcpHalfOpening();
             }
