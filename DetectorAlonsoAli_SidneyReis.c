@@ -40,7 +40,6 @@ int detected = 0;
 unsigned char interfaceName[5];
 
 int m_mIndex = 0;
-//unsigned char mac_matrix[10][6];
 
 int sockd;
 
@@ -50,16 +49,17 @@ int estadoTcpHalfOpening = 0;
 int ethertype;
 int ipv6type;
 
+//ideia: lista de portas e marcar qual ataque esta sendo feito em cada
+
 void processaTcpConnect()
 {
-
+    
 }
 
 void processaTcpHalfOpening()
 {
-
+    if()
 }
-
 
 int main()
 {
@@ -88,10 +88,8 @@ int main()
         recv(sockd,(char *) &buff, sizeof(buff), 0x0);
         if(memcmp(&buff[12], &ethertype, 2) == 0)
         {
-            printf("eh ip6\n");
-            if(buff[21] == 0x6) //tcp
+            if(buff[20] == 0x6) //tcp
             {
-                printf("eh tcp\n\n");
                 processaTcpConnect();
                 processaTcpHalfOpening();
             }
