@@ -182,82 +182,250 @@ void intHandler(int dummy) {
     keepRunning = 0;
 }
 
-void stealthscan()
+void syn_ack()
 {
-  sockEnt = 0;
-  sockSai = 0;
+    sockEnt = 0;
+    sockSai = 0;
 
-  uint16_t sorcPortNum = 3000; // exemplo
-  uint16_t destPortNum = 3000; // exemplo
+    uint16_t sorcPortNum = 3000; // exemplo
+    uint16_t destPortNum = 1024; // exemplo
 
-  if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
-  {
-    printf("Erro na criacao do socket.\n");
-    exit(1);
-  }
+    uint16_t portLimit = 5002;
 
-  tcp_hdr tcp;
-  tcp.sourcePort = htons(sorcPortNum);
-  tcp.destPort = htons(destPortNum);
-  tcp.seqNumber = htons(1); //TODO: verificar se precisa alterar
-  tcp.ackNumber = htons(0); //TODO: verificar se precisa alterar
-  tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
-  tcp.window = htons(0xff);
-  tcp.checksum = htons(0);
-  tcp.urgentPointer = htons(0); //TODO: avaliar
-  tcp.options = 0;
-
-  pseudo_hdr pseudoHeader;
-  memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
-  memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
-  pseudoHeader.tcpLength = sizeof(tcp);
-  pseudoHeader.zeros_nextHeader = htons(6);
-
-  int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-  unsigned char pseudoWithTcp[2*tcpChecksumSize];
-  memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
-  memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
-
-  tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
-
-  memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
-
-  ip6_hdr ip6;
-
-  uint32_t tipo =0x6 << 12;
-  ip6.firstLine = htons(tipo);
-  ip6.payloadLength = htons(sizeof(tcp_hdr)); //????TODO: MUDAR DEPOIS PRO VALOR CORRETO?????
-  ip6.nextHeader = 6;
-  ip6.hopLimit = 1;
-
-  memcpy( &bufferSai[14], &ip6,8); //8 bytes = tamanho ip6 struct
-  memcpy( &bufferSai[22], &localIp,16);
-  memcpy(&bufferSai[38], &targetIp, 16);
-
-  memcpy( &bufferSai, &targetMac, 6);
-  memcpy( &bufferSai[6], &localMac,6);
-  memcpy( &bufferSai[12], &etherType,2);
-
-  if(sendto(sockSai, bufferSai, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
-  {
-    printf("ERROR! sendto() \n");
-    exit(1);
-  }
-
-  recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0);
-
-  if(!memcmp(&bufferEnt[54], &tcp.destPort, 16) && !memcmp(&bufferEnt[70], &tcp.sourcePort, 16))
-  {
-    printf("source port e destination port esperados\n");
-    if(bufferEnt[164]==1)
+    if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
-      printf("\nrecebido com RST, porta esta fechada\n");
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+
+    if((sockEnt = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    {
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+
+    int flags = fcntl(sockEnt, F_GETFL, 0);
+    fcntl(sockEnt, F_SETFL, flags | O_NONBLOCK);
+    tcp_hdr tcp;
+
+    tcp.sourcePort = htons(sorcPortNum);
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x12); //0x1 = SYN/ack
+    tcp.window = htons(0xff);
+
+    tcp.checksum = htons(0);
+    tcp.urgentPointer = htons(0); //TODO: avaliar
+    tcp.options = 0;
+
+    pseudo_hdr pseudoHeader;
+    memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
+    memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
+    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.zeros_nextHeader = htons(6);
+
+    int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
+    unsigned char pseudoWithTcp[tcpChecksumSize];
+    memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+
+    ip6_hdr ip6;
+    uint32_t tipo =0x6 << 12;
+    ip6.firstLine = htons(tipo);
+    ip6.payloadLength = htons(sizeof(tcp_hdr));
+    ip6.nextHeader = 6;
+    ip6.hopLimit = 5;
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+
+    memcpy(&bufferSai[14], &ip6,  8); //8 bytes = tamanho ip6 struct
+    memcpy(&bufferSai[22],&localIp, 16);
+    memcpy(&bufferSai[38], &targetIp, 16);
+
+    memcpy(&bufferSai, &targetMac, 6);
+    memcpy(&bufferSai[6], &localMac, 6);
+    memcpy(&bufferSai[12], &etherType, 2);
+
+    //varedura de portas
+  while(destPortNum <= portLimit)
+  {
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    {
+        printf("ERROR! sendto() \n");
+        exit(1);
+    }
+    int i = 15000;
+    while(i != 0)
+    {
+        if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
+        {
+            if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
+            {
+                printf("Lalaioss%s\n", bufferEnt);
+                break;
+            }
+        }
+
+        //printf("%i\n", i)
+        //printf("%zd\n", recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0));
+        i--;
+    }
+
+
+    if(i != 0)
+    {
+        if(bufferEnt[54 + 12 + 1] == 4) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
+        {
+            //recebido eh syn/ack
+            printf("Porta %i: aberta\n", destPortNum);
+        }
+        else
+        {
+            printf("Flag desconhecido\n");
+        }
     }
     else
     {
-      printf("\nrecebido sem RST, porta esta aberta\n");
+        printf("Porta %i: fechada\n", destPortNum);
     }
+
+    destPortNum++;
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
   }
+
+  printf("Terminou SYN/ACK\n");
+}
+
+void stealthscan()
+{
+    sockEnt = 0;
+    sockSai = 0;
+
+    uint16_t sorcPortNum = 3000; // exemplo
+    uint16_t destPortNum = 1024; // exemplo
+
+    uint16_t portLimit = 5002;
+
+    if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    {
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+
+    if((sockEnt = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
+    {
+        printf("Erro na criacao do socket.\n");
+        exit(1);
+    }
+
+    int flags = fcntl(sockEnt, F_GETFL, 0);
+    fcntl(sockEnt, F_SETFL, flags | O_NONBLOCK);
+    tcp_hdr tcp;
+
+    tcp.sourcePort = htons(sorcPortNum);
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1); //0x1 = FIN
+    tcp.window = htons(0xff);
+
+    tcp.checksum = htons(0);
+    tcp.urgentPointer = htons(0); //TODO: avaliar
+    tcp.options = 0;
+
+    pseudo_hdr pseudoHeader;
+    memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
+    memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
+    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.zeros_nextHeader = htons(6);
+
+    int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
+    unsigned char pseudoWithTcp[tcpChecksumSize];
+    memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+
+    ip6_hdr ip6;
+    uint32_t tipo =0x6 << 12;
+    ip6.firstLine = htons(tipo);
+    ip6.payloadLength = htons(sizeof(tcp_hdr));
+    ip6.nextHeader = 6;
+    ip6.hopLimit = 5;
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+
+    memcpy(&bufferSai[14], &ip6,  8); //8 bytes = tamanho ip6 struct
+    memcpy(&bufferSai[22],&localIp, 16);
+    memcpy(&bufferSai[38], &targetIp, 16);
+
+    memcpy(&bufferSai, &targetMac, 6);
+    memcpy(&bufferSai[6], &localMac, 6);
+    memcpy(&bufferSai[12], &etherType, 2);
+
+    //varedura de portas
+  while(destPortNum <= portLimit)
+  {
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    {
+        printf("ERROR! sendto() \n");
+        exit(1);
+    }
+    int i = 15000;
+    while(i != 0)
+    {
+        if(recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0) != 0)
+        {
+            if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
+            {
+                printf("Lalaioss%s\n", bufferEnt);
+                break;
+            }
+        }
+
+        //printf("%i\n", i)
+        //printf("%zd\n", recv(sockEnt,(char *) &bufferEnt, sizeof(bufferEnt), 0x0));
+        i--;
+    }
+
+
+    if(i != 0)
+    {
+        if(bufferEnt[54 + 12 + 1] == 4) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
+        {
+            //recebido eh syn/ack
+            printf("Porta %i: fechada\n", destPortNum);
+        }
+        else
+        {
+            printf("Flag desconhecido\n");
+        }
+    }
+    else
+    {
+        printf("Porta %i: aberta\n", destPortNum);
+    }
+
+    destPortNum++;
+    tcp.destPort = htons(destPortNum);
+    tcp.seqNumber = htons(1);
+    tcp.ackNumber = htons(0);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+  }
+
+  printf("Terminou Stealth Scan\n");
 }
 
 void tcpconnect()
@@ -271,7 +439,7 @@ void tcpconnect()
     uint16_t destPortNum = 1024; // exemplo
 
     uint16_t portLimit = 5002;
-    
+
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
         printf("Erro na criacao do socket.\n");
@@ -300,7 +468,7 @@ void tcpconnect()
     tcp.urgentPointer = htons(0); //TODO: avaliar
     tcp.options = 0;
 
-    
+
     pseudo_hdr pseudoHeader;
     memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
     memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
@@ -354,8 +522,8 @@ void tcpconnect()
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
 
-    
-  
+
+
     //varedura de portas
   while(destPortNum <= portLimit)
   {
@@ -442,7 +610,7 @@ void tcphalfopening()
     uint16_t destPortNum = 1024; // exemplo
 
     uint16_t portLimit = 5002;
-    
+
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
         printf("Erro na criacao do socket.\n");
@@ -501,7 +669,7 @@ void tcphalfopening()
     memcpy(&bufferSai, &targetMac, 6);
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
-  
+
     //varedura de portas
   while(destPortNum <= portLimit)
   {
