@@ -214,7 +214,7 @@ void stealthscan()
   pseudoHeader.zeros_nextHeader = htons(6);
 
   int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-  unsigned char pseudoWithTcp[tcpChecksumSize];
+  unsigned char pseudoWithTcp[2*tcpChecksumSize];
   memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
   memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
 
@@ -265,6 +265,8 @@ void tcpconnect()
     sockEnt = 0;
     sockSai = 0;
 
+    int i;
+
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
 
@@ -284,6 +286,7 @@ void tcpconnect()
 
     int flags = fcntl(sockEnt, F_GETFL, 0);
     fcntl(sockEnt, F_SETFL, flags | O_NONBLOCK);
+
     tcp_hdr tcp;
 
     tcp.sourcePort = htons(sorcPortNum);
@@ -297,19 +300,41 @@ void tcpconnect()
     tcp.urgentPointer = htons(0); //TODO: avaliar
     tcp.options = 0;
 
+    
     pseudo_hdr pseudoHeader;
     memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
     memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
-    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.tcpLength = htons(sizeof(tcp));
     pseudoHeader.zeros_nextHeader = htons(6);
 
     int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-    unsigned char pseudoWithTcp[tcpChecksumSize];
+    unsigned char pseudoWithTcp[2*tcpChecksumSize];
+
+    for(i = 0; i < tcpChecksumSize; i++)
+    {
+        pseudoWithTcp[i] = 0;
+    }
     memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
     memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
 
     tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
-    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
+
+    /*int tcpAndPseudoSize = sizeof(tcp_hdr) + sizeof(pseudo_hdr);
+    int tcpSize = htons(sizeof(tcp_hdr));
+    uint32_t nxtHdr = htons(6);
+    unsigned short pseudoWithTcp[tcpAndPseudoSize];
+    for(i = 0; i < tcpAndPseudoSize; i++)
+    {
+        pseudoWithTcp[i] = 0;
+    }
+    memcpy(pseudoWithTcp, localIp, 16);
+    memcpy(&pseudoWithTcp[16], targetIp, 16);
+    memcpy(&pseudoWithTcp[32], &tcpSize, 4);
+    memcpy(&pseudoWithTcp[36], &nxtHdr, 4);
+    memcpy(&pseudoWithTcp[40], &tcp, sizeof(tcp_hdr));
+
+    tcp.checksum = htons(in_cksum(pseudoWithTcp, tcpAndPseudoSize));*/
+
 
 
     ip6_hdr ip6;
@@ -328,15 +353,18 @@ void tcpconnect()
     memcpy(&bufferSai, &targetMac, 6);
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
+
+    
   
     //varedura de portas
   while(destPortNum <= portLimit)
   {
-    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
     {
         printf("ERROR! sendto() \n");
         exit(1);
     }
+
     int i = 15000;
     while(i != 0)
     {
@@ -389,19 +417,19 @@ void tcpconnect()
         printf("Porta %i: fechada\n", destPortNum);
     }
 
-    destPortNum++;
-    tcp.destPort = htons(destPortNum);
-    tcp.seqNumber = htons(1);
-    tcp.ackNumber = htons(0);
-    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
+    destPortNum++; //avanca porta a ser atacada
+    tcp.destPort = htons(destPortNum); //muda a porta
+    tcp.seqNumber = htons(1); //reseta seqNumber
+    tcp.ackNumber = htons(0); //reseta ackNumber
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2); // bota flag de volta para syn
+    tcp.checksum = 0;
 
-    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
   }
-
-
-
-
-
   printf("Terminou TCP Connect\n");
 }
 
