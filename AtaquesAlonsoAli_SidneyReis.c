@@ -187,6 +187,8 @@ void syn_ack()
     sockEnt = 0;
     sockSai = 0;
 
+    int i;
+
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
 
@@ -222,15 +224,19 @@ void syn_ack()
     pseudo_hdr pseudoHeader;
     memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
     memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
-    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.tcpLength = htons(sizeof(tcp));
     pseudoHeader.zeros_nextHeader = htons(6);
 
     int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-    unsigned char pseudoWithTcp[tcpChecksumSize];
+    unsigned char pseudoWithTcp[2*tcpChecksumSize];
+
+    for(i = 0; i < tcpChecksumSize; i++)
+    {
+        pseudoWithTcp[i] = 0;
+    }
     memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
     memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
 
-    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
     tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
 
     ip6_hdr ip6;
@@ -265,7 +271,7 @@ void syn_ack()
         {
             if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
             {
-                printf("Lalaioss%s\n", bufferEnt);
+                //printf("Lalaioss%s\n", bufferEnt);
                 break;
             }
         }
@@ -285,7 +291,8 @@ void syn_ack()
         }
         else
         {
-            printf("Flag desconhecido\n");
+            //printf("Flag desconhecido\n");
+            printf("Porta %i: fechada\n", destPortNum);
         }
     }
     else
@@ -298,8 +305,13 @@ void syn_ack()
     tcp.seqNumber = htons(1);
     tcp.ackNumber = htons(0);
     tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+    tcp.checksum = 0;
 
-    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
   }
 
   printf("Terminou SYN/ACK\n");
@@ -309,6 +321,8 @@ void stealthscan()
 {
     sockEnt = 0;
     sockSai = 0;
+
+    int i;
 
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
@@ -345,15 +359,19 @@ void stealthscan()
     pseudo_hdr pseudoHeader;
     memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
     memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
-    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.tcpLength = htons(sizeof(tcp));
     pseudoHeader.zeros_nextHeader = htons(6);
 
     int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-    unsigned char pseudoWithTcp[tcpChecksumSize];
+    unsigned char pseudoWithTcp[2*tcpChecksumSize];
+
+    for(i = 0; i < tcpChecksumSize; i++)
+    {
+        pseudoWithTcp[i] = 0;
+    }
     memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
     memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
 
-    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
     tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
 
     ip6_hdr ip6;
@@ -403,12 +421,13 @@ void stealthscan()
     {
         if(bufferEnt[54 + 12 + 1] == 4) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
         {
-            //recebido eh syn/ack
+            //recebido eh rst
             printf("Porta %i: fechada\n", destPortNum);
         }
         else
         {
-            printf("Flag desconhecido\n");
+            //printf("Flag desconhecido\n");
+            printf("Porta %i: aberta\n", destPortNum);
         }
     }
     else
@@ -421,8 +440,13 @@ void stealthscan()
     tcp.seqNumber = htons(1);
     tcp.ackNumber = htons(0);
     tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+    tcp.checksum = 0;
 
-    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
   }
 
   printf("Terminou Stealth Scan\n");
@@ -564,9 +588,13 @@ void tcpconnect()
             tcp.dataOffAndFlags = htons((0x6 << 12) + 0x10); //ack
             tcp.seqNumber = received.ackNumber;
             tcp.ackNumber = received.seqNumber+1;
+            tcp.checksum = 0;
 
-            memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
+            memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
 
+            tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+            memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
             //terminou de construir o ack
 
             if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
@@ -715,9 +743,13 @@ void tcphalfopening()
             tcp.dataOffAndFlags = htons((0x6 << 12) + 0x4); //rst
             tcp.seqNumber = received.ackNumber;
             tcp.ackNumber = received.seqNumber+1;
+            tcp.checksum = 0;
 
-            memcpy(&bufferSai[54], &tcp, sizeof(tcp_hdr));
+            memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
 
+            tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+            memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
             //terminou de construir o ack
 
             if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
@@ -911,6 +943,7 @@ int main()
 
   //tcpconnect();
   tcphalfopening();
+  //stealthscan();
 
 
    /* indice da interface pela qual os pacotes serao enviados. Eh necessário conferir este valor. */
