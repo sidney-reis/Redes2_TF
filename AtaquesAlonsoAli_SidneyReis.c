@@ -372,7 +372,7 @@ void tcpconnect()
         {
             if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
             {
-                printf("Lalaioss%s\n", bufferEnt);
+                //printf("Lalaioss%s\n", bufferEnt);
                 break;
             }
         }
@@ -409,7 +409,8 @@ void tcpconnect()
         }
         else
         {
-            printf("Flag desconhecido\n");
+            //printf("Flag desconhecido\n");
+            printf("Porta %i: fechada\n", destPortNum);
         }
     }
     else
@@ -437,6 +438,8 @@ void tcphalfopening()
 {
     sockEnt = 0;
     sockSai = 0;
+
+    int i;
 
     uint16_t sorcPortNum = 3000; // exemplo
     uint16_t destPortNum = 1024; // exemplo
@@ -467,23 +470,26 @@ void tcphalfopening()
     tcp.window = htons(0xff);
 
     tcp.checksum = htons(0);
-    tcp.urgentPointer = htons(0); //TODO: avaliar
+    tcp.urgentPointer = htons(0); 
     tcp.options = 0;
 
     pseudo_hdr pseudoHeader;
     memcpy(&pseudoHeader.sourceAddress, &localIp, sizeof(localIp));
     memcpy(&pseudoHeader.destinationAddress, &targetIp, sizeof(targetIp));
-    pseudoHeader.tcpLength = sizeof(tcp);
+    pseudoHeader.tcpLength = htons(sizeof(tcp));
     pseudoHeader.zeros_nextHeader = htons(6);
 
     int tcpChecksumSize = sizeof(tcp) + sizeof(pseudoHeader);
-    unsigned char pseudoWithTcp[tcpChecksumSize];
+    unsigned char pseudoWithTcp[2*tcpChecksumSize];
+
+    for(i = 0; i < tcpChecksumSize; i++)
+    {
+        pseudoWithTcp[i] = 0;
+    }
     memcpy(&pseudoWithTcp, &pseudoHeader, sizeof(pseudoHeader));
     memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp));
 
     tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
-    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
-
 
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
@@ -517,7 +523,7 @@ void tcphalfopening()
         {
             if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
             {
-                printf("Lalaioss%s\n", bufferEnt);
+                //printf("Lalaioss%s\n", bufferEnt);
                 break;
             }
         }
@@ -554,7 +560,8 @@ void tcphalfopening()
         }
         else
         {
-            printf("Flag desconhecido\n");
+            //printf("Flag desconhecido\n");
+            printf("Porta %i: fechada\n", destPortNum);
         }
     }
     else
@@ -562,13 +569,18 @@ void tcphalfopening()
         printf("Porta %i: fechada\n", destPortNum);
     }
 
-    destPortNum++;
-    tcp.destPort = htons(destPortNum);
-    tcp.seqNumber = htons(1);
-    tcp.ackNumber = htons(0);
-    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2);
+    destPortNum++; //avanca porta a ser atacada
+    tcp.destPort = htons(destPortNum); //muda a porta
+    tcp.seqNumber = htons(1); //reseta seqNumber
+    tcp.ackNumber = htons(0); //reseta ackNumber
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x2); // bota flag de volta para syn
+    tcp.checksum = 0;
 
-    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr));
+    memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
+
+    tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize); //calcula
+
+    memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
   }
 
 
@@ -680,14 +692,12 @@ void setupTeste()
 
 int main()
 {
-  printf("%s\n", "cara");
-
-  //readTargetMacAndIP();
   setupTeste();
+  //readTargetMacAndIP();
 
 
-  printf("%c\n", targetMac[0]);
-  printf("%c\n", targetIp[0]);
+  //printf("%c\n", targetMac[0]);
+  //printf("%c\n", targetIp[0]);
 
   int i, sockFd = 0, retValue = 0;
   char buffer[BUFFER_LEN], dummyBuf[50];
@@ -731,7 +741,10 @@ int main()
   destAddr.sll_halen = 6;
   destAddr.sll_ifindex = 2;
 
-  tcpconnect();
+  //tcpconnect();
+  tcphalfopening();
+
+
    /* indice da interface pela qual os pacotes serao enviados. Eh necessário conferir este valor. */
   /*
   while(1)
