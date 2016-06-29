@@ -30,6 +30,7 @@
 #define MAC_ADDR_LEN 6
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
+#define FLAGS 67
 
 struct ifreq ifr;
 
@@ -49,16 +50,32 @@ int estadoTcpHalfOpening = 0;
 int ethertype;
 int ipv6type;
 
+struct tipoAtaque
+
 //ideia: lista de portas e marcar qual ataque esta sendo feito em cada
+
 
 void processaTcpConnect()
 {
-    
+    if(estadou que estou == 0)
+    if(buff[FLAGS] == 0x02)   //recebemos um SYN
+    {
+        estado que estou ++
+    }
+
+    if(estado que estou == 1)
+    if(buff[FLAGS] == 0x10)
+        flag que conta tcpconnect ++
+
+    if(flag que conta tcpconnect == 3)
 }
 
-void processaTcpHalfOpening()
+void processaTcpHalfOpening()  
 {
-    if()
+    if(buff[FLAGS] == 0x02)  //recebemos um SYN
+    {
+
+    }             
 }
 
 int main()
@@ -90,8 +107,7 @@ int main()
         {
             if(buff[20] == 0x6) //tcp
             {
-                processaTcpConnect();
-                processaTcpHalfOpening();
+                processaSyn();
             }
         }
         
