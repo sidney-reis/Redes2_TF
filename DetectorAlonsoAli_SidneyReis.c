@@ -31,52 +31,116 @@
 #define BUFFER_LEN 1518
 #define BUFFSIZE 1518
 #define FLAGS 67
+#define ATTACKCOUNTER 3979
+
+
 
 struct ifreq ifr;
-
 unsigned char buff[BUFFSIZE]; // buffer de recepcao
-
 int detected = 0;
-
 unsigned char interfaceName[5];
-
 int m_mIndex = 0;
-
-int sockd;
-
+int sockd = 0;
 int estadoTcpConnect = 0;
 int estadoTcpHalfOpening = 0;
-
 int ethertype;
 int ipv6type;
+int i;
 
-struct tipoAtaque
+int tcpConnectCounter = 0;
+
+typedef struct
+{
+    uint16_t port;
+    unsigned char macAddress[6];
+    uint16_t state;
+}tipoAtaque;
+
+tipoAtaque lista[10000];
+int listaLimite = 0;
 
 //ideia: lista de portas e marcar qual ataque esta sendo feito em cada
 
-
 void processaTcpConnect()
 {
-    if(estadou que estou == 0)
     if(buff[FLAGS] == 0x02)   //recebemos um SYN
     {
-        estado que estou ++
+        int existe = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                break;
+            }
+        }
+
+        if(!existe)
+        {
+            tipoAtaque novaPort;
+            novaPort.port = buff[56];
+            memcpy(&novaPort.port, &buff[6], 6);
+            novaPort.state = 1;
+
+            lista[listaLimite] = novaPort;
+            listaLimite++;
+        }
+
+        //printf("Recebmos um SYN");
     }
 
-    if(estado que estou == 1)
     if(buff[FLAGS] == 0x10)
-        flag que conta tcpconnect ++
+    {
+        int existe = 0;
+        int index = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                index = i;
+                break;
+            }
+        }
 
-    if(flag que conta tcpconnect == 3)
+        if(existe)
+        {
+            printf("chegou jiaeo\n");
+            lista[index].state = 2;
+        }
+    }
+
+    int terminalCount = 0;
+    int flagTipo = 0;
+    for (i = 0; i < listaLimite; i++)
+    {
+        if(lista[i].state >= 1)
+        {
+            terminalCount++;
+        }
+        if(lista[i].state == 2)
+        {
+            flagTipo = 1;
+        }
+    }
+    //printf("%d\n", terminalCount);
+    if(terminalCount >= ATTACKCOUNTER && flagTipo == 1)
+    {
+        printf("Ataque de TCPConnect acontecendo, xessus\n");
+    }
+    else if(terminalCount >= ATTACKCOUNTER)
+    {
+        printf("Ataque de TCPConnect ou Half-Opening acontecendo, doublexessus\n");
+    }
 }
 
-void processaTcpHalfOpening()  
+/*void processaTcpHalfOpening()
 {
     if(buff[FLAGS] == 0x02)  //recebemos um SYN
     {
 
-    }             
-}
+    }
+}*/
 
 int main()
 {
@@ -84,12 +148,15 @@ int main()
     ipv6type = 0x6;
 
 
+
+
+
     strcpy(interfaceName, "eth0");
 
     // O procedimento abaixo eh utilizado para "setar" a interface em modo promiscuo
     strcpy(ifr.ifr_name, interfaceName);
     if(ioctl(sockd, SIOCGIFINDEX, &ifr) < 0)
-      printf("erro no ioctl!");
+      printf("erro no ioctl!\n");
     ioctl(sockd, SIOCGIFFLAGS, &ifr);
     ifr.ifr_flags |= IFF_PROMISC;
     ioctl(sockd, SIOCSIFFLAGS, &ifr);
@@ -107,10 +174,11 @@ int main()
         {
             if(buff[20] == 0x6) //tcp
             {
-                processaSyn();
+                processaTcpConnect();
+                //processaTcpHalfOpening();
             }
         }
-        
+
     }
 
 
