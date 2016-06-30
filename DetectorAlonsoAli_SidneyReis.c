@@ -75,68 +75,68 @@ void processaTcpConnect()
     if(buff[FLAGS] == 0x02)   //recebemos um SYN
     {
         int existe = 0;
-        for(i = 0; i < listaLimiteTcpConnect; i++)
+        for(i = 0; i < listaLimiteTcpConnect; i++) //iteramos na lista verificando se a porta desse pacote que recebemos já está na lista
         {
             if(listaTcpConnect[i].port == buff[56])
             {
-                existe = 1;
+                existe = 1;    //se a porta já existe na lista, não fazemos mais nada aqui
                 break;
             }
         }
-        if(!existe)
+        if(!existe)   //se a porta não existe na lista, adicionamos uma nova entrada da struct na nossa lista
         {
             tipoAtaque novaPort;
-            novaPort.port = buff[56];
-            memcpy(&novaPort.port, &buff[6], 6);
-            novaPort.state = 1;
+            memcpy(&novaPort.port, &buff[56], 2);   //copia porta para a struct
+            memcpy(&novaPort.macAddress, &buff[6], 6); //copia mac para a struct
+            novaPort.state = 1;   //estado é 1, pois recebemos um SYN
 
-            listaTcpConnect[listaLimiteTcpConnect] = novaPort;
-            listaLimiteTcpConnect++;
+            listaTcpConnect[listaLimiteTcpConnect] = novaPort;   //adicionamos a struct na lista
+            listaLimiteTcpConnect++;   //incrementamos o tamanho da lista
         }
 
         //printf("Recebmos um SYN");
     }
 
-    if(buff[FLAGS] == 0x10) // ACK
+    if(buff[FLAGS] == 0x10) // recebemos um ACK
     {
         int existe = 0;
         int index = 0;
-        for(i = 0; i < listaLimiteTcpConnect; i++)
+        for(i = 0; i < listaLimiteTcpConnect; i++)    //iteramos na lista verificando se a porta desse pacote que recebemos já está na lista
         {
             if(listaTcpConnect[i].port == buff[56])
             {
-                existe = 1;
-                index = i;
+                existe = 1;   //se a porta já existe na lista, alteramos essa flag para ver o estado dela
+                index = i;   //posição da struct na nossa lista
                 break;
             }
         }
 
-        if(existe)
+        if(existe)   // se a porta desse pacote já se encontra na nossa list
         {
             printf("chegou jiaeo\n");
-            listaTcpConnect[index].state = 2;
+            listaTcpConnect[index].state = 2;   // colocamos a entrada dessa para estado terminal, pois passamos por um SYN, e agora chegamos em um ACK na mesma porta.
         }
     }
 
     int terminalCount = 0;
     int flagTipo = 0;
-    for (i = 0; i < listaLimiteTcpConnect; i++)
+    for (i = 0; i < listaLimiteTcpConnect; i++)   //iteramos sobre a lista
     {
-        if(listaTcpConnect[i].state >= 1)
+        if(listaTcpConnect[i].state >= 1)  //varremos a lista contando quantos estados 1 ou 2 tem.
         {
             terminalCount++;
         }
-        if(listaTcpConnect[i].state == 2)
+        if(listaTcpConnect[i].state == 2)  //se possuirmos 1 estado terminal na lista, alteramos a flag para dizermos que é um TcpConnectAttack
         {
             flagTipo = 1;
         }
     }
     //printf("%d\n", terminalCount);
-    if(terminalCount >= ATTACKCOUNTER && flagTipo == 1)
+    if(terminalCount >= ATTACKCOUNTER && flagTipo == 1)  // se tivermos mais que 3 tentativas de acesso as nossas portas e algum deles tentou dar ACK, então temos um TCP connect acontecendo
     {
         printf("Ataque de TCPConnect acontecendo, xessus\n");
     }
-    else if(terminalCount >= ATTACKCOUNTER)
+    else if(terminalCount >= ATTACKCOUNTER)  //se tivermos mais que 3 tentativa de acesso as nossas portas e nenhum ack, então pode ser tanto TCP connect ou half opening.
     {
         printf("Ataque de TCP Connect ou Half-Opening acontecendo, doublexessus\n");
     }
@@ -159,8 +159,8 @@ void processaTcpHalfOpening()
         if(!existe)
         {
             tipoAtaque novaPort;
-            novaPort.port = buff[56];
-            memcpy(&novaPort.port, &buff[6], 6);
+            memcpy(&novaPort.port, &buff[56], 2);
+            memcpy(&novaPort.macAddress, &buff[6], 6);
             novaPort.state = 1;
 
             listaHalfOpen[listaLimitehalfOpen] = novaPort;
@@ -215,7 +215,7 @@ void processaTcpHalfOpening()
     }
 }
 
-void processaStealthScan
+void processaStealthScan()
 {
     if(buff[FLAGS] == 0x01)   //recebemos um FIN
     {
@@ -232,8 +232,8 @@ void processaStealthScan
         if(!existe)
         {
             tipoAtaque novaPort;
-            novaPort.port = buff[56];
-            memcpy(&novaPort.port, &buff[6], 6);
+            memcpy(&novaPort.port, &buff[56], 6);
+            memcpy(&novaPort.macAddress, &buff[6], 6);
             novaPort.state = 1;
 
             listaStealthScan[listaLimiteStealthScan] = novaPort;
@@ -258,7 +258,7 @@ void processaStealthScan
     }
 }
 
-void processaSynAck
+void processaSynAck()
 {
     if(buff[FLAGS] == 0x12)   //recebemos um SYN/ACK
     {
@@ -275,8 +275,8 @@ void processaSynAck
         if(!existe)
         {
             tipoAtaque novaPort;
-            novaPort.port = buff[56];
-            memcpy(&novaPort.port, &buff[6], 6);
+            memcpy(&novaPort.port, &buff[56], 6);
+            memcpy(&novaPort.macAddress, &buff[6], 6);
             novaPort.state = 1;
 
             listaSynAck[listaLimiteSynAck] = novaPort;
@@ -285,6 +285,7 @@ void processaSynAck
 
         //printf("Recebmos um SYN/ACK");
     }
+
 
     int terminalCount = 0;
     for (i = 0; i < listaLimiteSynAck; i++)
@@ -334,9 +335,9 @@ int main()
             if(buff[20] == 0x6) //tcp
             {
                 processaTcpConnect();
-                processaTcpHalfOpening();
-                processaStealthScan();
-                processaSynAck();
+                //processaTcpHalfOpening();
+                //processaStealthScan();
+                //processaSynAck();
             }
         }
 
