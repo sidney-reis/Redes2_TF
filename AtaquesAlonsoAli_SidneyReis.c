@@ -88,6 +88,11 @@ unsigned char interfaceName[5];
 
 struct sockaddr_ll destAddr = {0};
 
+uint16_t sorcPortNum;
+uint16_t destPortNum;
+
+uint16_t portLimit;
+
 /*
  * Copyright (c) 1989, 1993
  *      The Regents of the University of California.  All rights reserved.
@@ -189,10 +194,10 @@ void syn_ack()
 
     int i;
 
-    uint16_t sorcPortNum = 3000; // exemplo
-    uint16_t destPortNum = 1024; // exemplo
+    //uint16_t sorcPortNum = 3000; // exemplo
+    //uint16_t destPortNum = 1024; // exemplo
 
-    uint16_t portLimit = 5002;
+    //uint16_t portLimit = 5002;
 
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
@@ -259,7 +264,7 @@ void syn_ack()
     //varedura de portas
   while(destPortNum <= portLimit)
   {
-    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
     {
         printf("ERROR! sendto() \n");
         exit(1);
@@ -284,9 +289,11 @@ void syn_ack()
 
     if(i != 0)
     {
-        if(bufferEnt[54 + 12 + 1] == 4) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
+        if(bufferEnt[54 + 12 + 1] == 0x14) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
         {
-            //recebido eh syn/ack
+            //recebido eh rst + ack
+
+            ///ENUNCIADO DIZ QUE RECEBEREMOS RST SE ESTIVER ABERTO???
             printf("Porta %i: aberta\n", destPortNum);
         }
         else
@@ -304,7 +311,7 @@ void syn_ack()
     tcp.destPort = htons(destPortNum);
     tcp.seqNumber = htons(1);
     tcp.ackNumber = htons(0);
-    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x1);
+    tcp.dataOffAndFlags = htons((0x6 << 12) + 0x12);
     tcp.checksum = 0;
 
     memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
@@ -324,10 +331,10 @@ void stealthscan()
 
     int i;
 
-    uint16_t sorcPortNum = 3000; // exemplo
-    uint16_t destPortNum = 1024; // exemplo
+    //uint16_t sorcPortNum = 3000; // exemplo
+    //uint16_t destPortNum = 1024; // exemplo
 
-    uint16_t portLimit = 5002;
+    //uint16_t portLimit = 5002;
 
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
@@ -394,7 +401,7 @@ void stealthscan()
     //varedura de portas
   while(destPortNum <= portLimit)
   {
-    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
     {
         printf("ERROR! sendto() \n");
         exit(1);
@@ -406,7 +413,7 @@ void stealthscan()
         {
             if(memcmp(targetMac, &bufferEnt[6], 6) == 0)
             {
-                printf("Lalaioss%s\n", bufferEnt);
+                //printf("Lalaioss%s\n", bufferEnt);
                 break;
             }
         }
@@ -419,19 +426,15 @@ void stealthscan()
 
     if(i != 0)
     {
-        if(bufferEnt[54 + 12 + 1] == 4) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
+        if(bufferEnt[54 + 12 + 1] == 0x14) //54 offset pro header tcp, 12 pro campo de dataoff + flags , 1 pro campo de flags
         {
-            //recebido eh rst
+            //recebido eh rst + ack
             printf("Porta %i: fechada\n", destPortNum);
-        }
-        else
-        {
-            //printf("Flag desconhecido\n");
-            printf("Porta %i: aberta\n", destPortNum);
         }
     }
     else
     {
+
         printf("Porta %i: aberta\n", destPortNum);
     }
 
@@ -459,10 +462,10 @@ void tcpconnect()
 
     int i;
 
-    uint16_t sorcPortNum = 3000; // exemplo
-    uint16_t destPortNum = 1024; // exemplo
+    //uint16_t sorcPortNum = 3000; // exemplo
+    //uint16_t destPortNum = 1024; // exemplo
 
-    uint16_t portLimit = 5002;
+    //uint16_t portLimit = 5002;
 
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
@@ -511,24 +514,6 @@ void tcpconnect()
 
     tcp.checksum = in_cksum((unsigned short*)pseudoWithTcp, tcpChecksumSize);
 
-    /*int tcpAndPseudoSize = sizeof(tcp_hdr) + sizeof(pseudo_hdr);
-    int tcpSize = htons(sizeof(tcp_hdr));
-    uint32_t nxtHdr = htons(6);
-    unsigned short pseudoWithTcp[tcpAndPseudoSize];
-    for(i = 0; i < tcpAndPseudoSize; i++)
-    {
-        pseudoWithTcp[i] = 0;
-    }
-    memcpy(pseudoWithTcp, localIp, 16);
-    memcpy(&pseudoWithTcp[16], targetIp, 16);
-    memcpy(&pseudoWithTcp[32], &tcpSize, 4);
-    memcpy(&pseudoWithTcp[36], &nxtHdr, 4);
-    memcpy(&pseudoWithTcp[40], &tcp, sizeof(tcp_hdr));
-
-    tcp.checksum = htons(in_cksum(pseudoWithTcp, tcpAndPseudoSize));*/
-
-
-
     ip6_hdr ip6;
     uint32_t tipo =0x6 << 12;
     ip6.firstLine = htons(tipo);
@@ -545,8 +530,6 @@ void tcpconnect()
     memcpy(&bufferSai, &targetMac, 6);
     memcpy(&bufferSai[6], &localMac, 6);
     memcpy(&bufferSai[12], &etherType, 2);
-
-
 
     //varedura de portas
   while(destPortNum <= portLimit)
@@ -587,7 +570,7 @@ void tcpconnect()
 
             tcp.dataOffAndFlags = htons((0x6 << 12) + 0x10); //ack
             tcp.seqNumber = received.ackNumber;
-            tcp.ackNumber = received.seqNumber+1;
+            tcp.ackNumber = htonl(ntohl(received.seqNumber)+1);
             tcp.checksum = 0;
 
             memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
@@ -597,7 +580,7 @@ void tcpconnect()
             memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
             //terminou de construir o ack
 
-            if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+            if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
             {
                 printf("ERROR! sendto() no envio do ACK tcpconnect\n");
                 exit(1);
@@ -637,10 +620,10 @@ void tcphalfopening()
 
     int i;
 
-    uint16_t sorcPortNum = 3000; // exemplo
-    uint16_t destPortNum = 1024; // exemplo
+    //uint16_t sorcPortNum = 3000; // exemplo
+    //uint16_t destPortNum = 1024; // exemplo
 
-    uint16_t portLimit = 5002;
+    //uint16_t portLimit = 5002;
 
     if((sockSai = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
     {
@@ -707,7 +690,7 @@ void tcphalfopening()
     //varedura de portas
   while(destPortNum <= portLimit)
   {
-    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+    if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
     {
         printf("ERROR! sendto() \n");
         exit(1);
@@ -742,7 +725,7 @@ void tcphalfopening()
 
             tcp.dataOffAndFlags = htons((0x6 << 12) + 0x4); //rst
             tcp.seqNumber = received.ackNumber;
-            tcp.ackNumber = received.seqNumber+1;
+            tcp.ackNumber = htonl(ntohl(received.seqNumber)+1);
             tcp.checksum = 0;
 
             memcpy(&pseudoWithTcp[sizeof(pseudoHeader)], &tcp, sizeof(tcp)); //temos que calcular de novo o checksum com os novos dados, olha la
@@ -752,7 +735,7 @@ void tcphalfopening()
             memcpy( &bufferSai[54], &tcp, sizeof(tcp_hdr)); //vai powrra
             //terminou de construir o ack
 
-            if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ + 80, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
+            if(sendto(sockSai, bufferSai, 14 + sizeof(tcp_hdr) + sizeof(ip6_hdr) + 2 * 16 /*tamanho dos enderecos ipv6*/ , 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll)) < 0)
             {
                 printf("ERROR! sendto() no envio do ACK tcp half opening\n");
                 exit(1);
@@ -837,7 +820,7 @@ void readTargetMacAndIP()
     }
 }
 
-void setupTeste()
+void setupMacsIps()
 {
     localMac[0] = 0xa4;
     localMac[1] = 0x1f;
@@ -888,127 +871,90 @@ void setupTeste()
     targetIp[15] = 0x50;
 }
 
+void readPortRange()
+{
+    printf("Insira inicio do range de portas: ");
+    scanf("%u", &destPortNum);
+    printf("%s\n");
+    printf("Insira fim do range de portas: ");
+    scanf("%u", &portLimit);
+    printf("%s\n");
+}
 
 
 int main()
 {
-  setupTeste();
-  //readTargetMacAndIP();
-
-
-  //printf("%c\n", targetMac[0]);
-  //printf("%c\n", targetIp[0]);
-
+    //Setup das coisas para envio
   int i, sockFd = 0, retValue = 0;
   char buffer[BUFFER_LEN], dummyBuf[50];
   //struct sockaddr_ll destAddr;
 
   etherType = htons(0x86DD);
 
-  //signal(SIGINT, intHandler);
-
-/* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
-  /* De um "man" para ver os parametros.*/
-  /* htons: converte um short (2-byte) integer para standard network byte order. */
-  /*if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0)
-  {
-    printf("Erro na criacao do socket.\n");
-    exit(1);
-  }*/
-
   strcpy(interfaceName, "eth0");
   acquireMAC(&localMac);
 
+  sorcPortNum = 3000; //estatico
 
 
-  /* Configura MAC Origem e Destino */
-
-
-
-
-
-  // O procedimento abaixo eh utilizado para "setar" a interface em modo promiscuo
-  /*strcpy(ifr.ifr_name, interfaceName);
-  if(ioctl(sockFd, SIOCGIFINDEX, &ifr) < 0)
-      printf("erro no ioctl!");
-  ioctl(sockFd, SIOCGIFFLAGS, &ifr);
-  ifr.ifr_flags |= IFF_PROMISC;
-  ioctl(sockFd, SIOCSIFFLAGS, &ifr);*/
-
-  /* Identificacao de qual maquina (MAC) deve receber a mensagem enviada no socket. */
   destAddr.sll_family = htons(PF_PACKET);
   destAddr.sll_protocol = htons(ETH_P_ALL);
   destAddr.sll_halen = 6;
   destAddr.sll_ifindex = 2;
 
+
+
+  //setup da logica do programa
+  int id = 0;
+  int confirm = 0;
+
+  setupMacsIps();
+  //readTargetMacAndIP();
+  readPortRange();
+
+  while(confirm != 1)
+  {
+    printf("1. TCP Connect\n2. TCP Half Opening\n3. Stealth Scan\n4. SYN/ACK\nInsira o ataque desejado: ");
+    scanf("%i", &id);
+    printf("%s\n", "\n");
+
+    if(id == 1)
+      {
+        tcpconnect();
+        confirm = 1;
+      }
+      else if(id == 2)
+      {
+        tcphalfopening();
+        confirm = 1;
+      }
+      else if(id == 3)
+      {
+        stealthscan();
+        confirm = 1;
+      }
+      else if(id == 4)
+      {
+        syn_ack();
+        confirm = 1;
+      }
+      else
+      {
+        printf("%s\n", "Ataque inválido, escolha um dos valores abaixo\n\n");
+      }
+  }
+  
+
+
+  //printf("%c\n", targetMac[0]);
+  //printf("%c\n", targetIp[0]);
+
+
+
   //tcpconnect();
-  tcphalfopening();
+  //tcphalfopening();
   //stealthscan();
 
 
-   /* indice da interface pela qual os pacotes serao enviados. Eh necessário conferir este valor. */
-  /*
-  while(1)
-    {
-        recv(sockFd,(char *) &buff1, sizeof(buff1), 0x0);
-        if (buff1[12] == 0x08 && buff1[13] == 0x06)
-        {
-            if (buff1[20] == 0x00 && buff1[21] == 0x01)
-            {
-
-                if(!(buff1[6] == localMac[0] && buff1[7] == localMac[1] && buff1[8] == localMac[2] && buff1[9] == localMac[3] && buff1[10] == localMac[4] && buff1[11] == localMac[5]))//if(!memcmp(&buff1[6], localMac, sizeof(unsigned char) * 6))
-                {
-                    memcpy(&ethHeader, &buff1[0], 14 * sizeof(uint8_t));
-                    memcpy(&arpHeader, &buff1[14], 8 * sizeof(uint8_t));
-                    memcpy(&targetMac, &ethHeader.ether_shost, 6 * sizeof(uint8_t));
-
-                    break;
-                }
-            }
-        }
-       }
-
-    memcpy(&buff3, &buff1, sizeof(buff1));
-
-
-    memcpy(&destAddr.sll_addr, &ethHeader.ether_shost, 6);
-
-    //Copiamos o header ethernet forjado para o buffer
-    memcpy(&buff2[6], &localMac, sizeof(uint8_t) * 6); //SOURCE HARDWARE ADDRESS = LOCAL MAC
-    memcpy(buff2, &ethHeader.ether_shost, sizeof(uint8_t) * 6); //RECEIVER HARDWARE ADDRESS = TARGETMAC
-    memcpy(&buff2[12], &ethHeader.ether_type, sizeof(uint16_t)); //TIPO CONTINUA O MESMO (ARP)
-    //Terminamos de forjar o ethernet
-
-    //COMECAMOS A FORJAR O ARP
-    memcpy(&buff2[14], &buff1[14], BUFFSIZE - sizeof(char) * 8); //COPIAMOS OS PRIMEIROS 8 BYTES DO CABECALHO ARP
-    buff2[21] = 0x02; //ALTERAMOS DE ARP REQUEST PARA ARP REPLY
-    memcpy(&buff2[22], &localMac, sizeof(char) * 6); //SOURCE HARDWARE ADDRESS = LOCAL MAC
-    memcpy(&buff2[28], &buff1[38], sizeof(char) * 4); //SOURCE PROTOCOL ADDRESS = IP DO HOST COM MAC QUE ELE BUSCAVA
-    memcpy(&buff2[32], &ethHeader.ether_shost, sizeof(char) * 6); //TARGET HARDWARE ADDRESS = TARGET MAC
-    memcpy(&buff2[38], &buff1[28], sizeof(char) * 4); //TARGET PROTOCOL ADDRESS = IP DO ALVO
-
-  while(keepRunning) {
-    /* Envia pacotes de 42 bytes */
-
-    /*if((retValue = sendto(sockFd, buff2, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
-       printf("ERROR! sendto() \n");
-       exit(1);
-    }
-
-
-    if(buff1[6] == localMac[0] && buff1[7] == localMac[1] && buff1[8] == localMac[2] && buff1[9] == localMac[3] && buff1[10] == localMac[4] && buff1[11] == localMac[5])
-    {
-      if(buff1[0] == targetMac[0] && buff1[1] == targetMac[1] && buff1[2] == targetMac[2] && buff1[3] == targetMac[3] && buff1[4] == targetMac[4] && buff1[5] == targetMac[5])
-        printf("Pacote Capturado\n");
-    }
-    //printf("Enviando pacote ARP Reply para alvo\n");
-  }
-
-  printf("Reconstruindo tabela ARP do alvo\n");
-
-  memcpy(&destAddr.sll_addr, &ethHeader.ether_dhost, 6);
-  if((retValue = sendto(sockFd, buff3, 42, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
-       printf("ERROR! sendto() \n");
-       exit(1);
-    }*/
+   
 }
