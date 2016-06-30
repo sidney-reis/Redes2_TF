@@ -56,8 +56,17 @@ typedef struct
     uint16_t state;
 }tipoAtaque;
 
-tipoAtaque lista[10000];
-int listaLimite = 0;
+tipoAtaque listaTcpConnect[10000];
+int listaLimiteTcpConnect = 0;
+
+tipoAtaque listaHalfOpen[10000];
+int listaLimitehalfOpen = 0;
+
+tipoAtaque listaStealthScan[10000];
+int listaLimiteStealthScan = 0;
+
+tipoAtaque listaSynAck[10000];
+int listaLimiteSynAck = 0;
 
 //ideia: lista de portas e marcar qual ataque esta sendo feito em cada
 
@@ -66,15 +75,14 @@ void processaTcpConnect()
     if(buff[FLAGS] == 0x02)   //recebemos um SYN
     {
         int existe = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimiteTcpConnect; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaTcpConnect[i].port == buff[56])
             {
                 existe = 1;
                 break;
             }
         }
-
         if(!existe)
         {
             tipoAtaque novaPort;
@@ -82,8 +90,8 @@ void processaTcpConnect()
             memcpy(&novaPort.port, &buff[6], 6);
             novaPort.state = 1;
 
-            lista[listaLimite] = novaPort;
-            listaLimite++;
+            listaTcpConnect[listaLimiteTcpConnect] = novaPort;
+            listaLimiteTcpConnect++;
         }
 
         //printf("Recebmos um SYN");
@@ -93,9 +101,9 @@ void processaTcpConnect()
     {
         int existe = 0;
         int index = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimiteTcpConnect; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaTcpConnect[i].port == buff[56])
             {
                 existe = 1;
                 index = i;
@@ -106,19 +114,19 @@ void processaTcpConnect()
         if(existe)
         {
             printf("chegou jiaeo\n");
-            lista[index].state = 2;
+            listaTcpConnect[index].state = 2;
         }
     }
 
     int terminalCount = 0;
     int flagTipo = 0;
-    for (i = 0; i < listaLimite; i++)
+    for (i = 0; i < listaLimiteTcpConnect; i++)
     {
-        if(lista[i].state >= 1)
+        if(listaTcpConnect[i].state >= 1)
         {
             terminalCount++;
         }
-        if(lista[i].state == 2)
+        if(listaTcpConnect[i].state == 2)
         {
             flagTipo = 1;
         }
@@ -139,9 +147,9 @@ void processaTcpHalfOpening()
     if(buff[FLAGS] == 0x02)   //recebemos um SYN
     {
         int existe = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimitehalfOpen; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaHalfOpen[i].port == buff[56])
             {
                 existe = 1;
                 break;
@@ -155,8 +163,8 @@ void processaTcpHalfOpening()
             memcpy(&novaPort.port, &buff[6], 6);
             novaPort.state = 1;
 
-            lista[listaLimite] = novaPort;
-            listaLimite++;
+            listaHalfOpen[listaLimitehalfOpen] = novaPort;
+            listaLimitehalfOpen++;
         }
 
         //printf("Recebmos um SYN");
@@ -166,9 +174,9 @@ void processaTcpHalfOpening()
     {
         int existe = 0;
         int index = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimitehalfOpen; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaHalfOpen[i].port == buff[56])
             {
                 existe = 1;
                 index = i;
@@ -179,19 +187,19 @@ void processaTcpHalfOpening()
         if(existe)
         {
             printf("chegou jiaeo\n");
-            lista[index].state = 2;
+            listaHalfOpen[index].state = 2;
         }
     }
 
     int terminalCount = 0;
     int flagTipo = 0;
-    for (i = 0; i < listaLimite; i++)
+    for (i = 0; i < listaLimitehalfOpen; i++)
     {
-        if(lista[i].state >= 1)
+        if(listaHalfOpen[i].state >= 1)
         {
             terminalCount++;
         }
-        if(lista[i].state == 2)
+        if(listaHalfOpen[i].state == 2)
         {
             flagTipo = 1;
         }
@@ -212,9 +220,9 @@ void processaStealthScan
     if(buff[FLAGS] == 0x01)   //recebemos um FIN
     {
         int existe = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimiteStealthScan; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaStealthScan[i].port == buff[56])
             {
                 existe = 1;
                 break;
@@ -228,17 +236,17 @@ void processaStealthScan
             memcpy(&novaPort.port, &buff[6], 6);
             novaPort.state = 1;
 
-            lista[listaLimite] = novaPort;
-            listaLimite++;
+            listaStealthScan[listaLimiteStealthScan] = novaPort;
+            listaLimiteStealthScan++;
         }
 
         //printf("Recebmos um FIN");
     }
 
     int terminalCount = 0;
-    for (i = 0; i < listaLimite; i++)
+    for (i = 0; i < listaLimiteStealthScan; i++)
     {
-        if(lista[i].state >= 1)
+        if(listaStealthScan[i].state >= 1)
         {
             terminalCount++;
         }
@@ -255,9 +263,9 @@ void processaSynAck
     if(buff[FLAGS] == 0x12)   //recebemos um SYN/ACK
     {
         int existe = 0;
-        for(i = 0; i < listaLimite; i++)
+        for(i = 0; i < listaLimiteSynAck; i++)
         {
-            if(lista[i].port == buff[56])
+            if(listaSynAck[i].port == buff[56])
             {
                 existe = 1;
                 break;
@@ -271,17 +279,17 @@ void processaSynAck
             memcpy(&novaPort.port, &buff[6], 6);
             novaPort.state = 1;
 
-            lista[listaLimite] = novaPort;
-            listaLimite++;
+            listaSynAck[listaLimiteSynAck] = novaPort;
+            listaLimiteSynAck++;
         }
 
         //printf("Recebmos um SYN/ACK");
     }
 
     int terminalCount = 0;
-    for (i = 0; i < listaLimite; i++)
+    for (i = 0; i < listaLimiteSynAck; i++)
     {
-        if(lista[i].state >= 1)
+        if(listaSynAck[i].state >= 1)
         {
             terminalCount++;
         }
