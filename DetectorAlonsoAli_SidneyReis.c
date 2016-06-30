@@ -89,7 +89,7 @@ void processaTcpConnect()
         //printf("Recebmos um SYN");
     }
 
-    if(buff[FLAGS] == 0x10)
+    if(buff[FLAGS] == 0x10) // ACK
     {
         int existe = 0;
         int index = 0;
@@ -130,17 +130,168 @@ void processaTcpConnect()
     }
     else if(terminalCount >= ATTACKCOUNTER)
     {
-        printf("Ataque de TCPConnect ou Half-Opening acontecendo, doublexessus\n");
+        printf("Ataque de TCP Connect ou Half-Opening acontecendo, doublexessus\n");
     }
 }
 
-/*void processaTcpHalfOpening()
+void processaTcpHalfOpening()
 {
-    if(buff[FLAGS] == 0x02)  //recebemos um SYN
+    if(buff[FLAGS] == 0x02)   //recebemos um SYN
     {
+        int existe = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                break;
+            }
+        }
 
+        if(!existe)
+        {
+            tipoAtaque novaPort;
+            novaPort.port = buff[56];
+            memcpy(&novaPort.port, &buff[6], 6);
+            novaPort.state = 1;
+
+            lista[listaLimite] = novaPort;
+            listaLimite++;
+        }
+
+        //printf("Recebmos um SYN");
     }
-}*/
+
+    if(buff[FLAGS] == 0x04) // RST
+    {
+        int existe = 0;
+        int index = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                index = i;
+                break;
+            }
+        }
+
+        if(existe)
+        {
+            printf("chegou jiaeo\n");
+            lista[index].state = 2;
+        }
+    }
+
+    int terminalCount = 0;
+    int flagTipo = 0;
+    for (i = 0; i < listaLimite; i++)
+    {
+        if(lista[i].state >= 1)
+        {
+            terminalCount++;
+        }
+        if(lista[i].state == 2)
+        {
+            flagTipo = 1;
+        }
+    }
+    //printf("%d\n", terminalCount);
+    if(terminalCount >= ATTACKCOUNTER && flagTipo == 1)
+    {
+        printf("Ataque de TCP Half-Opening acontecendo, xessus\n");
+    }
+    else if(terminalCount >= ATTACKCOUNTER)
+    {
+        printf("Ataque de TCP Connect ou Half-Opening acontecendo, doublexessus\n");
+    }
+}
+
+void processaStealthScan
+{
+    if(buff[FLAGS] == 0x01)   //recebemos um FIN
+    {
+        int existe = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                break;
+            }
+        }
+
+        if(!existe)
+        {
+            tipoAtaque novaPort;
+            novaPort.port = buff[56];
+            memcpy(&novaPort.port, &buff[6], 6);
+            novaPort.state = 1;
+
+            lista[listaLimite] = novaPort;
+            listaLimite++;
+        }
+
+        //printf("Recebmos um FIN");
+    }
+
+    int terminalCount = 0;
+    for (i = 0; i < listaLimite; i++)
+    {
+        if(lista[i].state >= 1)
+        {
+            terminalCount++;
+        }
+    }
+    //printf("%d\n", terminalCount);
+    if(terminalCount >= ATTACKCOUNTER)
+    {
+        printf("Ataque de Stealth Scan acontecendo, xessus\n");
+    }
+}
+
+void processaSynAck
+{
+    if(buff[FLAGS] == 0x12)   //recebemos um SYN/ACK
+    {
+        int existe = 0;
+        for(i = 0; i < listaLimite; i++)
+        {
+            if(lista[i].port == buff[56])
+            {
+                existe = 1;
+                break;
+            }
+        }
+
+        if(!existe)
+        {
+            tipoAtaque novaPort;
+            novaPort.port = buff[56];
+            memcpy(&novaPort.port, &buff[6], 6);
+            novaPort.state = 1;
+
+            lista[listaLimite] = novaPort;
+            listaLimite++;
+        }
+
+        //printf("Recebmos um SYN/ACK");
+    }
+
+    int terminalCount = 0;
+    for (i = 0; i < listaLimite; i++)
+    {
+        if(lista[i].state >= 1)
+        {
+            terminalCount++;
+        }
+    }
+    //printf("%d\n", terminalCount);
+    if(terminalCount >= ATTACKCOUNTER)
+    {
+        printf("Ataque de SYN/ACK acontecendo, xessus\n");
+    }
+}
 
 int main()
 {
@@ -175,7 +326,9 @@ int main()
             if(buff[20] == 0x6) //tcp
             {
                 processaTcpConnect();
-                //processaTcpHalfOpening();
+                processaTcpHalfOpening();
+                processaStealthScan();
+                processaSynAck();
             }
         }
 
